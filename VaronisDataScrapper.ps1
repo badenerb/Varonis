@@ -1,11 +1,10 @@
-﻿#######################################################################
+#######################################################################
 #                                                                     #
 #                      Varonis Data Scrapper                          #
 #          Make sure to change the deskpath to your desktop path      #
 #    This program will scrape data from the CSVs that Varonis gives   #
 #                                                                     #
 #######################################################################
-read-host
 
 #Variable Declerations
 
@@ -13,12 +12,13 @@ $checkWordlist = false
 $platform = 3
 
 #####################################################
-$DESKPATH = "C:\Users\" + $env:USERNAME + "\Desktop"#
+$DESKPATH = "C:\Users\" + $env:USERNAME + "\OneDrive - Vermeer Corporation\Desktop"#
 #CHANGE THIS if it does not work^^^^#################
 
 #Functions
 
 #DONE
+#Startup function that creates the startup menu and graphic.
 function startup
 {
     #Graphic/Intro
@@ -58,6 +58,7 @@ function startup
 }
 
 #DONE
+#Function that will scrape human users from a Varonis CSV file
 function userScrape
 {
     clear
@@ -105,6 +106,7 @@ function userScrape
 }
 
 #BROKEN
+#Function will eventually find open Sharepoint sites from the Varonis CSV file
 function shareScrape
 {
     clear
@@ -247,17 +249,76 @@ function shareScrape
     Read-Host
 }
 
-#WORK IN PROGRESS
+#DONE
 function sharePointLook
 {
-    $url = "https://vermeercorp-my.sharepoint.com/personal/acallender_vermeer_com/"
-    $WebResponse = Invoke-WebRequest $url
-    $content = $WebResponse.Content
-    #$content
-    if ($content -like '*<title>Sign in to your account</title>*')
+    clear
+    $inputFile = Read-Host -Prompt "What is the name of the Varonis CSV output file (excluding the file extension)"
+    $FILENAME = "$inputFile.csv"
+    cd ~
+    Set-Location $DESKPATH
+
+    if(!(Test-Path -Path ".\$FILENAME"))
     {
-       echo 'Hello There'
+        Write-Host "Ensure the Varonis output file, $FILENAME, is on your desktop or exists"
+        read-host
+        return
     }
+
+    $index = 2
+    foreach ($line in Get-Content .\$FILENAME)
+    {
+        #Get the URL
+        $url = getURL -fp .\$FILENAME -ln $index
+
+        #Test the URL
+        try
+        {
+            $WebResponse = Invoke-WebRequest $url
+        }
+        catch
+        {
+            $index++
+            continue
+        }
+        Write-Host $url
+        $content = $WebResponse.Content
+        if (!($content -like '*<title>Sign in to your account</title>*'))
+        {
+            write-host "This $url is open"
+        }
+        $index++
+    }
+    Write-Host "Processing complete, press enter to continue."
+    Read-Host
+}
+
+#Done
+#Returns the full URL in a given file on the given line number
+function getURL
+{
+    param($fp, $ln)
+    $indexOfServer = 0
+    $indexOfPath = 0
+    $header = Get-Content $fp | Select -First 1
+    $urlLine = Get-Content $fp | Select -First $ln | select -Last 1
+    $splitHead = $header.Split(",")
+    for($i = 0; $i -lt $splitHead.Length; $i++)
+    {
+        $j = $splitHead[$i]
+        if($j -eq "File Server")
+        {
+            $indexOfServer = $i
+        }
+        elseif($j -eq "Path")
+        {
+            $indexOfPath = $i
+        }
+    }
+    $splitLine = $urlLine.Split(",")
+    $fullURL = $splitLine[$indexOfServer] + $splitLine[$indexOfPath]
+    $fullURL = $fullURL.replace('\','/')
+    return $fullURL
 }
 
 #Menu
@@ -268,6 +329,16 @@ while ($true)
 {
     clear
     Write-Host @"
+  __  __       _          
+ |  \/  | __ _(_)_ __     
+ | |\/| |/ _` | | '_ \    
+ | |  | | (_| | | | | |   
+ |_|  |_|\__,_|_|_| |_|   
+ |  \/  | ___ _ __  _   _ 
+ | |\/| |/ _ \ '_ \| | | |
+ | |  | |  __/ | | | |_| |
+ |_|  |_|\___|_| |_|\__,_|                  
+
 Select an option from below
         
       1. Scrape User data to get human users
@@ -286,6 +357,10 @@ Select an option from below
     elseif($sel -eq 2)
     {
         shareScrape
+    }
+    elseif($sel -eq 3)
+    {
+        sharePointLook
     }
     elseif($sel -eq 4)
     {
